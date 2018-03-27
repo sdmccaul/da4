@@ -1,8 +1,79 @@
 from bs4 import BeautifulSoup, Comment
 import re
-from urllib.request import urlopen
+import requests
+import sqlite3
 
 pfr = 'https://www.pro-football-reference.com/teams/nyg/2008_roster.htm'
+
+# def crawl_pfr(teams=True)
+#     pfr_team_codes = {
+#         'nyg' : 'New York Giants',
+
+#     }
+#     base_url = 'https://www.pro-football-reference.com/'
+#     if teams:
+#         base_url += 'teams/'
+
+def scrape_team_info():
+    # teams.html is a copy-n-paste of data from 
+    # https://www.pro-football-reference.com/teams/
+    # and the javascript drop-down on all pages (for divisions)
+    with open('data/teams.html') as f:
+        soup = BeautifulSoup(f, 'html.parser')
+
+    team_data = {}
+
+    division_list = soup.find('li')
+    divs = division_list.find_all('div')
+    for div in divs:
+        conf, dvn = div.text.split(':')[0].strip().split()
+        for link in div.find_all('a'):
+            team_name_inc = link.text
+            _,_,team_id,_ = link.attrs['href'].split('/')
+            team_data[team_id] = {
+                'team_id' : team_id,
+                'conference' : conf,
+                'division' : dvn,
+                'short_name' : team_name_inc
+            }
+
+    team_table = soup.find('table')
+    team_headers = team_table.find_all('th')
+    for th in team_headers:
+        if th.find('a'):
+            link = th.find('a')
+            full_name = link.text
+            _,_,team_id,_ = link.attrs['href'].split('/')
+            team_data[team_id]['full_name'] = full_name
+    return team_data
+
+def load_team_data(teamData):
+    con = sqlite3.connect("data/pfr_data.db")
+    con.isolation_level = None
+    cur = con.cursor()
+    create_teams_table = """
+        CREATE TABLE IF NOT EXISTS teams (
+        id integer PRIMARY KEY,
+        pfr_id text NOT NULL,
+        full_name text NOT NULL,
+        short_name text NOT NULL,
+        conference text NOT NULL,
+        division text NOT NULL
+    ); """
+    cur.execute(create_teams_table)
+    insert_teams_row = """ INSERT INTO teams (
+        pfr_id,full_name,short_name,conference,division
+        ) VALUES (
+        '{0}','{1}','{2}','{3}','{4}');
+    """
+    for team, data in team_data.items():
+        insert_sql = insert_teams_row.format(
+            data['team_id'],data['full_name'],data['short_name'],
+            data['conference'],data['division'])
+        print(insert_sql)
+        cur.execute(insert_sql)
+    con.close()
+
 
 def parse_draft_data(draftSoup):
     draft_info = draftSoup.text.split('/')
@@ -67,4 +138,6 @@ def main():
         print(get_player_data(row))
 
 if __name__ == '__main__':
-    main()
+    # main()
+    team_data = scrape_team_info()
+    load_team_data(team_data)
