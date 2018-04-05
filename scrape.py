@@ -3,6 +3,7 @@ import re
 import requests
 import sqlite3
 
+import dbops
 pfr = 'https://www.pro-football-reference.com/teams/nyg/2008_roster.htm'
 
 # def crawl_pfr(teams=True)
@@ -51,16 +52,6 @@ def load_team_data(teamData):
     con = sqlite3.connect("data/pfr_data.db")
     con.isolation_level = None
     cur = con.cursor()
-    create_teams_table = """
-        CREATE TABLE IF NOT EXISTS teams (
-        id integer PRIMARY KEY,
-        pfr_id text NOT NULL,
-        full_name text NOT NULL,
-        short_name text NOT NULL,
-        conference text NOT NULL,
-        division text NOT NULL
-    ); """
-    cur.execute(create_teams_table)
     insert_teams_row = """ INSERT INTO teams (
         pfr_id,full_name,short_name,conference,division
         ) VALUES (
@@ -73,7 +64,6 @@ def load_team_data(teamData):
         print(insert_sql)
         cur.execute(insert_sql)
     con.close()
-
 
 def parse_draft_data(draftSoup):
     draft_info = draftSoup.text.split('/')
@@ -119,6 +109,30 @@ def get_player_data(playerSoup):
     pd['year_drafted'] = year
     return pd
 
+def load_roster_data(playerData):
+    pass
+
+def load_draft_data(playerData):
+    pass
+
+def load_player_data(playerData, teamId):
+    con = sqlite3.connect("data/pfr_data.db")
+    con.isolation_level = None
+    cur = con.cursor()
+    insert_player_row = """ INSERT INTO players (
+        pfr_id,name,birthdate,school
+        ) VALUES (
+        '{0}','{1}','{2}','{3}');
+    """
+    for data in playerData:
+        print(data)
+        insert_sql = insert_player_row.format(
+            data['pfr_id'],data['name'],data['birthdate'],
+            data['school'])
+        print(insert_sql)
+        cur.execute(insert_sql)
+    con.close()
+
 def main():
     # html = urlopen(pfr)
     # page_soup = BeautifulSoup(html.read(), 'html.parser')
@@ -134,10 +148,15 @@ def main():
         'table', {'id':'games_played_team'}).tbody.find_all('tr') 
     player_rows = [ row for row in table_rows
         if row.find('a',{'href': re.compile('players')}) ]
-    for row in player_rows:
-        print(get_player_data(row))
+    player_data = [ get_player_data(row) for row in player_rows ]
+    # for row in player_rows:
+    #     print(get_player_data(row))
+    return player_data
 
 if __name__ == '__main__':
     # main()
+    dbops.initialize_db('data/pfr_data.db')
     team_data = scrape_team_info()
     load_team_data(team_data)
+    player_data = main()
+    load_player_data(player_data, 'nyg')
