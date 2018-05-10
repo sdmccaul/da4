@@ -6,20 +6,12 @@ import sqlite3
 import dbops
 pfr = 'https://www.pro-football-reference.com/teams/nyg/2008_roster.htm'
 
-# def crawl_pfr(teams=True)
-#     pfr_team_codes = {
-#         'nyg' : 'New York Giants',
 
-#     }
-#     base_url = 'https://www.pro-football-reference.com/'
-#     if teams:
-#         base_url += 'teams/'
-
-def scrape_team_info():
+def scrape_team_info(teamPage, target):
     # teams.html is a copy-n-paste of data from 
     # https://www.pro-football-reference.com/teams/
     # and the javascript drop-down on all pages (for divisions)
-    with open('data/teams.html') as f:
+    with open(teamPage) as f:
         soup = BeautifulSoup(f, 'html.parser')
 
     team_data = {}
@@ -32,7 +24,7 @@ def scrape_team_info():
             team_name_inc = link.text
             _,_,team_id,_ = link.attrs['href'].split('/')
             team_data[team_id] = {
-                'team_id' : team_id,
+                'prf_id' : team_id,
                 'conference' : conf,
                 'division' : dvn,
                 'short_name' : team_name_inc
@@ -46,24 +38,15 @@ def scrape_team_info():
             full_name = link.text
             _,_,team_id,_ = link.attrs['href'].split('/')
             team_data[team_id]['full_name'] = full_name
-    return team_data
 
-def load_team_data(teamData):
-    con = sqlite3.connect("data/pfr_data.db")
-    con.isolation_level = None
-    cur = con.cursor()
-    insert_teams_row = """ INSERT INTO teams (
-        pfr_id,full_name,short_name,conference,division
-        ) VALUES (
-        '{0}','{1}','{2}','{3}','{4}');
-    """
-    for team, data in team_data.items():
-        insert_sql = insert_teams_row.format(
-            data['team_id'],data['full_name'],data['short_name'],
-            data['conference'],data['division'])
-        print(insert_sql)
-        cur.execute(insert_sql)
-    con.close()
+    with open(target, 'w') as f:
+        header = [ 'prf_id', 'full_name', 'short_name'
+            'conference', 'division' ]
+        writer = csv.DictWriter(f, header)
+        for team in team_data:
+            writer.writerow(team_data[team])
+
+    return len(team_data)
 
 def parse_draft_data(draftSoup):
     draft_info = draftSoup.text.split('/')
@@ -73,7 +56,7 @@ def parse_draft_data(draftSoup):
 
 def get_player_data(playerSoup):
     # First cell in table, Uniform Number, is actually
-    # a th element, so it's skipped.
+    # a <th> element, so it's skipped.
     # Otherwise table structure is as follows:
     # Player|Age|Pos|G|GS|Wt|Ht|College/Univ|BirthDate|Yrs|AV|Drafted(tm/rnd/yr)
     # We'll be interested in the following:
@@ -109,31 +92,19 @@ def get_player_data(playerSoup):
     pd['year_drafted'] = year
     return pd
 
-def load_roster_data(playerData):
-    pass
 
-def load_draft_data(playerData):
-    pass
+def normalize_player_data(playerRow):
+    player_data = (playerRow['pfr_id'], playerRow['name'],
+        playerRow['birthdate'], playerRow['school'])
+    roster_data = (playerRow['pfr_id'], playerRow['age'],
+        playerRow['position'], playerRow['games_played'],
+        playerRow['games_started'])
+    draft_data = (playerRow['pfr_id'], playerRow['year_drafted'],
+        playerRow['draft_round'], playerRow['draft_position'])
+    return (player_data, roster_data, draft_data)
 
-def load_player_data(playerData, teamId):
-    con = sqlite3.connect("data/pfr_data.db")
-    con.isolation_level = None
-    cur = con.cursor()
-    insert_player_row = """ INSERT INTO players (
-        pfr_id,name,birthdate,school
-        ) VALUES (
-        '{0}','{1}','{2}','{3}');
-    """
-    for data in playerData:
-        print(data)
-        insert_sql = insert_player_row.format(
-            data['pfr_id'],data['name'],data['birthdate'],
-            data['school'])
-        print(insert_sql)
-        cur.execute(insert_sql)
-    con.close()
 
-def main():
+def scrape():
     # html = urlopen(pfr)
     # page_soup = BeautifulSoup(html.read(), 'html.parser')
 
@@ -149,12 +120,36 @@ def main():
     player_rows = [ row for row in table_rows
         if row.find('a',{'href': re.compile('players')}) ]
     player_data = [ get_player_data(row) for row in player_rows ]
-    # for row in player_rows:
-    #     print(get_player_data(row))
-    return player_data
+    normalized = [ normalize_player_data(player)
+        for player in player_data ]
+    players = [ n[0] for n in normalized ]
+    rosters = [ n[1] for n in normalized ]
+    drafts = [ n[2] for n in normalized ]
+    with open(playerCsv, 'a') as f:
+        wrtr = csv.writer(f)
+        for p in players:
+            wrtr.writerow(p)
+
+    with open(draftCsv, 'a') as f:
+        wrtr = csv.writer(f)
+        for d in drafts:
+            wrtr.writerow(d) 
+
+    with open(rosterCsv, 'w') as f:
+        wrtr = csv.writer(f)
+        for r in rosters:
+            wrtr.writerow(r)
+
+def get_team_and_year(fName):
+    #https://www.pro-football-reference.com/teams/nyg/2016.htm
+    return team_abbv, year
 
 if __name__ == '__main__':
-    # main()
+    crawl_dir = sys.argv[1]
+    pages = [ f for f in os.listdir(crawl_dir)
+        if isfile(os.path.join(crawl_dir, f)) ]
+    for page in pages:
+        tally = scrape(page)
     dbops.initialize_db('data/pfr_data.db')
     team_data = scrape_team_info()
     load_team_data(team_data)

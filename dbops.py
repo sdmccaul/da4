@@ -55,3 +55,47 @@ def initialize_db(dbFile):
     cur.execute(create_draft_table)
     con.close()
     return True
+
+def load_player_data(playerData, teamId):
+    con = sqlite3.connect("data/pfr_data.db")
+    con.isolation_level = None
+    cur = con.cursor()
+    insert_player_row = """ INSERT INTO players (
+        pfr_id,name,birthdate,school
+        ) VALUES (
+        '{0}','{1}','{2}','{3}');
+    """
+    for data in playerData:
+        print(data)
+        insert_sql = insert_player_row.format(
+            data['pfr_id'],data['name'],data['birthdate'],
+            data['school'])
+        print(insert_sql)
+        cur.execute(insert_sql)
+    con.close()
+
+def load_team_data(teamData):
+    con = sqlite3.connect("data/pfr_data.db")
+    con.isolation_level = None
+    cur = con.cursor()
+    insert_teams_row = """ INSERT INTO teams (
+        pfr_id,full_name,short_name,conference,division
+        ) VALUES (
+        '{0}','{1}','{2}','{3}','{4}');
+    """
+    for team, data in team_data.items():
+        insert_sql = insert_teams_row.format(
+            data['team_id'],data['full_name'],data['short_name'],
+            data['conference'],data['division'])
+        print(insert_sql)
+        cur.execute(insert_sql)
+    con.close()
+
+def load_roster_data(rosterData):
+    pass
+
+def load_draft_data(playerData):
+    pass
+
+
+def load_data()
