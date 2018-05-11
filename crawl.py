@@ -25,4 +25,4 @@ def crawl_pfr(teamIds, yearStart, yearStop, targetDir):
                 print('Bad: {0} {1}'.format(team, year))
 
 if __name__ == '__main__':
-    crawl_pfr(['nyg','nyj'], 2008, 2010, 'data/raw')
+    crawl_pfr(['nyg','nyj'], 2008, 2009, 'data/raw')

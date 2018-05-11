@@ -2,16 +2,16 @@ from bs4 import BeautifulSoup, Comment
 import re
 import requests
 import sqlite3
+import csv
+import os
 
-import dbops
 pfr = 'https://www.pro-football-reference.com/teams/nyg/2008_roster.htm'
-
 
 def scrape_team_info(teamPage, target):
     # teams.html is a copy-n-paste of data from 
     # https://www.pro-football-reference.com/teams/
     # and the javascript drop-down on all pages (for divisions)
-    with open(teamPage) as f:
+    with open( os.path.abspath(teamPage) ) as f:
         soup = BeautifulSoup(f, 'html.parser')
 
     team_data = {}
@@ -39,14 +39,17 @@ def scrape_team_info(teamPage, target):
             _,_,team_id,_ = link.attrs['href'].split('/')
             team_data[team_id]['full_name'] = full_name
 
-    with open(target, 'w') as f:
-        header = [ 'prf_id', 'full_name', 'short_name'
-            'conference', 'division' ]
-        writer = csv.DictWriter(f, header)
-        for team in team_data:
-            writer.writerow(team_data[team])
+    # with open(target, 'w') as f:
+    #     header = [ 'prf_id', 'full_name', 'short_name'
+    #         'conference', 'division' ]
+    #     writer = csv.DictWriter(f, header)
+    #     for team in team_data:
+    #         writer.writerow(team_data[team])
 
-    return len(team_data)
+    team_rows =  [ (t['prf_id'], t['full_name'], t['short_name'],
+        t['conference'], t['division']) for t in team_data.values() ]
+
+    return team_rows
 
 def parse_draft_data(draftSoup):
     draft_info = draftSoup.text.split('/')
@@ -104,11 +107,11 @@ def normalize_player_data(playerRow):
     return (player_data, roster_data, draft_data)
 
 
-def scrape():
+def scrape(pageFile):
     # html = urlopen(pfr)
     # page_soup = BeautifulSoup(html.read(), 'html.parser')
 
-    with open('data/pfr-sample.html','r') as f:
+    with open(pageFile,'r') as f:
         page_soup = BeautifulSoup(f.read(), 'html.parser')
 
     # https://stackoverflow.com/questions/33138937/how-to-find-all-comments-with-beautiful-soup

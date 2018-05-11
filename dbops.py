@@ -98,4 +98,11 @@ def load_draft_data(playerData):
     pass
 
 
-def load_data()
+def load_data(csvFile, table, sqliteDb):
+    with open(csvFile, 'r') as f:
+        rdr = csv.reader(f)
+        rows = [ row for row in rdr ]
+
+    cast = cast_data(rows, table)
+    con = sqlite3.connect(sqliteDb)
+    
